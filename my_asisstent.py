@@ -1,98 +1,109 @@
-import random
+import json
 from datetime import datetime
+import speech_recognition as sr
 
-KEYWORDS = {
-    "greeting": ["привіт", "вітаю", "добрий"],
-    "time": ["годин", "котра", "час"],
-    "motivation": ["мотивуй", "підтрим", "сил"],
-    "help": ["допомога", "вмієш", "можеш"],
+
+def ask_ai(messages):
+    try:
+        history = []
+        for m in messages[1:]:
+            role = "model" if m["role"] == "assistant" else "user"
+            history.append({"role": role, "parts": [{"text": m["content"]}]})
+        r = requests.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+            params={"key": AQ.Ab8RN6Kta_aIKfImqIiMyP4Vn7BVRaLeinTFfNuINHsaB8Ainw},
+            json={
+                "system_instruction": {"parts": [{"text": messages[0]["content"]}]},
+                "contents": history,
+            },
+            timeout=30,
+        )
+        return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+    except:
+     return None
+
+try:
+    NAME = json.load(open("user.json", encoding="utf-8"))["name"]
+except:
+    NAME = "друже"
+
+RULES = " Відповідай українською і коротко. Не допомагай зі шкідливим (безпека). Не вигадуй факти. Пам'ятай розмову."
+PERSONAS = {
+    "вчитель": "Ти Біт, добрий вчитель. Пояснюєш просто.",
+    "радник": "Ти Біт, чіткий радник. Даєш поради кроками.",
 }
-
-def clean(text):
-    text = text.lower().strip()
-    for ch in "?!.,":
-        text = text.replace(ch, "")
-    return text
-
-def analyze(user_text):
-    text = clean(user_text)
-    for topic, words in KEYWORDS.items():
-        for word in words:
-            if word in text:
-                return topic
-    return "unknown"
-
-def greeting_scenario():
-    return random.choice(GREETINGS)
-
-def time_scenario():
-    return f"Зараз {datetime.now().strftime('%H:%M')}. Я перевірив двічі."
-
-def motivation_scenario():
-    return random.choice(MOTIVATION)
-
-def help_scenario():
-    return random.choice(ME)
+mode = "вчитель"
 
 
-def respond(topic):
-    if topic == "greeting":
-        return greeting_scenario()
-    elif topic == "time":
-        return time_scenario()
-    elif topic == "motivation":
-        return motivation_scenario()
-    elif topic == "help":
-        return help_scenario()
-    return random.choice(UNKNOWN)
+def system():
+    return {"role": "system", "content": PERSONAS[mode] + RULES + " Користувача звати " + NAME}
 
 
-UNKNOWN = [
-    "Не розумію, напиши занаво",
-    "Не розумію що ти написав",
-    "Напиши по іньшому, не розумію ",
-]
-
-MOTIVATION = [
-    "Я бачю твій прогрес, не зупиняйся зараз далі тільки більше.",
-    "Уяви іх облича коли у ти будешь першим.",
-    "Согодні ти вже знаешь більше ніж учора, а завтра більше ніж сьогодні.",
-]
-GREETINGS = [
-    "Добрий день",
-    "Вітаю тебе",
-    "І тобі привіт",
-]
-ME = [
-    "Я можу допомогти тобі у розуміні темі яку ти не зразумів.",
-    "Я можу зробити твое домашнне завдання.",
-    "Я можу навчити тебе чомусь .",
-]
-NAME = "Некс"
+messages = [system()]
 
 
-def get_response(user_text):
-    text = user_text.lower().strip()
-    if text == "привіт":
-        return random.choice(GREETINGS)
-    elif text == "хто ти":
-        return "Я Некс, твій помічник для навчання."
-    elif "можеш" in text:  # треба написату фарзу типу що ти можешь
-        return random.choice(ME)
-    elif text == "Допоможи мені":
-        return "Добре, зараз допомогу ."
-    elif text == "Що ти робиш ?":
-        return "Я допомагаю тобі у навчані."
-    elif "мотивуй" in text: # треба написату фарзу типу замотевуй мене
-        return random.choice(MOTIVATION)
-    return random.choice(UNKNOWN)
+def chat(text):
+    messages.append({"role": "user", "content": text})
+    answer = ask_ai(messages[:1] + messages[1:][-20:])
+    if answer is None:
+        messages.pop()
+        return "Помилка зв'язку"
+    messages.append({"role": "assistant", "content": answer})
+    return answer
 
 
-print(f"{NAME}: Вітаю, дорогий користувачу!")
+def listen():
+    r = sr.Recognizer()
+    try:
+        with sr.Microphone() as s:
+            r.adjust_for_ambient_noise(s, duration=0.5)
+            print("[Слухаю...]")
+            audio = r.listen(s, timeout=5, phrase_time_limit=7)
+        return r.recognize_google(audio, language="uk-UA")
+    except sr.WaitTimeoutError:
+        print("[Тихо]")
+    except sr.UnknownValueError:
+        print("[Не розібрав]")
+    except sr.RequestError:
+        print("[Немає інтернету]")
+    except OSError:
+        return input("Ти: ")  # мікрофона немає
+    return ""
+
+
+ok = 0
+bad = 0
 while True:
-    user_text = input("Ти: ")
-    if clean(user_text) == "бувай":
-        print(f"{NAME}: До швидкої зустрічі, дорогий користувачу!")
+    text = listen()
+    if text == "":
+        bad += 1
+        continue
+    ok += 1
+    print("Ти сказав:", text)
+    open("log_speech.txt", "a", encoding="utf-8").write(str(datetime.now()) + " | " + text + "\n")
+    t = text.lower()
+
+    if t == "стоп":
+        print("Біт: Тримай ритм!")
+        print("Розпізнано:", ok, "Не розпізнано:", bad)
         break
-    topic = analyze(user_text)
-    print(f"{NAME}: {respond(topic)}")
+    elif t == "очисти пам'ять":
+        messages[:] = [system()]
+        print("Біт: Пам'ять очищено!")
+    elif t in ("режим вчитель", "режим радник"):
+        mode = t.split()[1]
+        messages[:] = [system()]
+        print("Біт: Режим", mode)
+    elif t == "скільки повідомлень":
+        print("Біт:", len(messages) - 1)
+    elif t == "що я казав":
+        print("Біт:", open("log_speech.txt", encoding="utf-8").readlines()[-3:])
+    elif "привіт" in t:
+        print("Біт: Привіт,", NAME + "!")
+    elif "котра година" in t:
+        print("Біт: Зараз", datetime.now().strftime("%H:%M"))
+    elif "жарт" in t:
+        print("Біт: Oct 31 == Dec 25!")
+    else:
+        print("Я почув:", text)
+        print("Біт:", chat(text))
