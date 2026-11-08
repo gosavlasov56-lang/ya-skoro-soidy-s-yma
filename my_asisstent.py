@@ -11,7 +11,7 @@ def ask_ai(messages):
             history.append({"role": role, "parts": [{"text": m["content"]}]})
         r = requests.post(
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-            params={"key": AQ.Ab8RN6Kta_aIKfImqIiMyP4Vn7BVRaLeinTFfNuINHsaB8Ainw},
+            params={"key": "AQ.Ab8RN6Kta_aIKfImqIiMyP4Vn7BVRaLeinTFfNuINHsaB8Ainw"},
             json={
                 "system_instruction": {"parts": [{"text": messages[0]["content"]}]},
                 "contents": history,
@@ -27,7 +27,7 @@ try:
 except:
     NAME = "друже"
 
-RULES = " Відповідай українською і коротко. Не допомагай зі шкідливим (безпека). Не вигадуй факти. Пам'ятай розмову."
+RULES = " Відповідай українською і коротко. Не вигадуй відповоді. Пам'ятай розмову."
 PERSONAS = {
     "вчитель": "Ти Біт, добрий вчитель. Пояснюєш просто.",
     "радник": "Ти Біт, чіткий радник. Даєш поради кроками.",
