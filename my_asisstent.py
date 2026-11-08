@@ -1,6 +1,13 @@
 import json
+import os
 from datetime import datetime
+
+import requests
 import speech_recognition as sr
+
+API_KEY = os.environ.get("GEMINI_API_KEY", "AQ.Ab8RN6Kta_aIKfImqIiMyP4Vn7BVRaLeinTFfNuINHsaB8Ainw")
+
+URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
 
 def ask_ai(messages):
@@ -10,24 +17,31 @@ def ask_ai(messages):
             role = "model" if m["role"] == "assistant" else "user"
             history.append({"role": role, "parts": [{"text": m["content"]}]})
         r = requests.post(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-            params={"key": "AQ.Ab8RN6Kta_aIKfImqIiMyP4Vn7BVRaLeinTFfNuINHsaB8Ainw"},
+            URL,
+            headers={"x-goog-api-key": API_KEY},
             json={
                 "system_instruction": {"parts": [{"text": messages[0]["content"]}]},
                 "contents": history,
             },
             timeout=30,
         )
-        return r.json()["candidates"][0]["content"]["parts"][0]["text"]
-    except:
-     return None
+        data = r.json()
+        if "candidates" not in data:
+            print("[API]", data.get("error", {}).get("message", data))
+            return None
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception as e:
+        print("[Помилка запиту]", e)
+        return None
+
 
 try:
-    NAME = json.load(open("user.json", encoding="utf-8"))["name"]
-except:
+    with open("user.json", encoding="utf-8") as f:
+        NAME = json.load(f)["name"]
+except Exception:
     NAME = "друже"
 
-RULES = " Відповідай українською і коротко. Не вигадуй відповоді. Пам'ятай розмову."
+RULES = " Відповідай українською і коротко. Не вигадуй факти. Пам'ятай розмову."
 PERSONAS = {
     "вчитель": "Ти Біт, добрий вчитель. Пояснюєш просто.",
     "радник": "Ти Біт, чіткий радник. Даєш поради кроками.",
@@ -44,7 +58,10 @@ messages = [system()]
 
 def chat(text):
     messages.append({"role": "user", "content": text})
-    answer = ask_ai(messages[:1] + messages[1:][-20:])
+    recent = messages[1:][-20:]
+    while recent and recent[0]["role"] != "user":  # історія має починатися з user
+        recent.pop(0)
+    answer = ask_ai([messages[0]] + recent)
     if answer is None:
         messages.pop()
         return "Помилка зв'язку"
@@ -66,9 +83,16 @@ def listen():
         print("[Не розібрав]")
     except sr.RequestError:
         print("[Немає інтернету]")
-    except OSError:
-        return input("Ти: ")  # мікрофона немає
+    except (OSError, AttributeError):  # немає мікрофона або PyAudio
+        return input("Ти: ")
     return ""
+
+
+def normalize(text):
+    t = text.lower().strip()
+    for ch in ("’", "ʼ", "`"):
+        t = t.replace(ch, "'")
+    return t.rstrip(".!?, ")
 
 
 ok = 0
@@ -80,8 +104,9 @@ while True:
         continue
     ok += 1
     print("Ти сказав:", text)
-    open("log_speech.txt", "a", encoding="utf-8").write(str(datetime.now()) + " | " + text + "\n")
-    t = text.lower()
+    with open("log_speech.txt", "a", encoding="utf-8") as f:
+        f.write(str(datetime.now()) + " | " + text + "\n")
+    t = normalize(text)
 
     if t == "стоп":
         print("Біт: Тримай ритм!")
@@ -97,7 +122,9 @@ while True:
     elif t == "скільки повідомлень":
         print("Біт:", len(messages) - 1)
     elif t == "що я казав":
-        print("Біт:", open("log_speech.txt", encoding="utf-8").readlines()[-3:])
+        with open("log_speech.txt", encoding="utf-8") as f:
+            for line in f.readlines()[-3:]:
+                print("  ", line.strip())
     elif "привіт" in t:
         print("Біт: Привіт,", NAME + "!")
     elif "котра година" in t:
@@ -105,5 +132,4 @@ while True:
     elif "жарт" in t:
         print("Біт: Oct 31 == Dec 25!")
     else:
-        print("Я почув:", text)
         print("Біт:", chat(text))
