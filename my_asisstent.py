@@ -104,7 +104,6 @@ last_error = ""
 
 
 def say(text):
-    # ділимо на речення
     text = text.replace("!", ".").replace("?", ".")
     for sentence in text.split("."):
         if sentence.strip() == "":
@@ -114,10 +113,7 @@ def say(text):
             playsound("voice.mp3")
             os.remove("voice.mp3")
         except Exception:
-            pass
-        time.sleep(0.3)  # пауза між реченнями
-
-
+            
 def say_async(text):
     threading.Thread(target=say, args=(text,), daemon=True).start()
 
@@ -142,7 +138,6 @@ def ask_ai(question):
         language = "українською"
     else:
         language = "англійською"
-    # системний промт будується з персони + мова і час
     prompt = (
         build_system_prompt(PERSONA)
         + f"\nВідповідай {language}."
@@ -154,7 +149,6 @@ def ask_ai(question):
             headers={"x-goog-api-key": API_KEY},
             json={
                 "system_instruction": {"parts": [{"text": prompt}]},
-                # few-shot приклади + справжнє питання
                 "contents": build_few_shot_contents()
                 + [{"role": "user", "parts": [{"text": question}]}],
             },
@@ -162,7 +156,6 @@ def ask_ai(question):
         )
         data = response.json()
         if "candidates" not in data:
-            # Google повернув помилку — запам'ятовуємо її текст
             last_error = f"{response.status_code}: " + str(data.get("error", {}).get("message", data))[:200]
             return None
         return data["candidates"][0]["content"]["parts"][0]["text"].strip()
@@ -311,7 +304,6 @@ def clear_chat():
 
 
 def listen_click():
-    # одна голосова фраза: слухаю -> відповідаю вголос
     mood_label.config(text="Слухаю...")
 
     def work():
@@ -368,7 +360,6 @@ for label in QUICK_COMMANDS:
 tk.Button(quick, text="Очистити чат", relief="flat", bg="#FFFFFF", fg="#B3261E", padx=8,
           command=clear_chat).pack(side="right")
 
-# поле введення
 bottom = tk.Frame(root, bg="#FFFFFF")
 bottom.pack(fill="x", padx=15, pady=15)
 entry = tk.Entry(bottom, font=("Arial", 12), relief="flat")
